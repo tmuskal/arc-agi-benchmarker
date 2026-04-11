@@ -1,0 +1,21 @@
+{
+  "name": "arc-agi-benchmarker",
+  "version": "1.0.0",
+  "description": "Benchmark your Claude Code setup against ARC-AGI tasks. Run benchmarks, browse tests, generate reports, compare runs across harnesses.",
+  "author": "Tal Muskal",
+  "license": "MIT",
+  "commands": [],
+  "skills": [
+    {"name": "setup", "file": "skills/setup/SKILL.md"},
+    {"name": "run-benchmark", "file": "skills/run-benchmark/SKILL.md"},
+    {"name": "browse-tests", "file": "skills/browse-tests/SKILL.md"},
+    {"name": "report", "file": "skills/report/SKILL.md"},
+    {"name": "compare-runs", "file": "skills/compare-runs/SKILL.md"},
+    {"name": "cross-harness", "file": "skills/cross-harness/SKILL.md"}
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tmuskal/arc-agi-benchmarker"
+  },
+  "keywords": ["arc-agi", "benchmark", "evaluation"]
+}
