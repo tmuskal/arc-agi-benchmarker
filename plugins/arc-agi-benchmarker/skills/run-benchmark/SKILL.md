@@ -313,10 +313,16 @@ elif command == 'reset':
     session['resets'] += 1
     session['action_history'].append({'is_reset': True})
 
-# Extract observation
-frame = obs.frame
-if hasattr(frame, 'tolist'):
-    frame = frame.tolist()
+# Extract observation - recursively convert numpy arrays to lists
+import numpy as np
+def to_serializable(obj):
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, list):
+        return [to_serializable(x) for x in obj]
+    return obj
+
+frame = to_serializable(obs.frame)
 
 # Use env.action_space (returns GameAction objects with .name) instead of
 # obs.available_actions (which returns integer IDs, not GameAction objects).
