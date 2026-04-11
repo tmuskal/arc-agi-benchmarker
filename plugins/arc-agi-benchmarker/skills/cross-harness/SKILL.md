@@ -176,7 +176,8 @@ seed = <SEED>
 games_filter = '<GAMES_FILTER>'  # 'all' or comma-separated IDs
 
 from arc_agi import Arcade, OperationMode
-arc = Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=env_dir)
+op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
+arc = Arcade(operation_mode=op_mode, environments_dir=env_dir)
 envs = arc.get_environments()
 
 all_ids = []
@@ -278,7 +279,7 @@ def main():
     from arc_agi import Arcade, OperationMode
     from arcengine import GameAction
 
-    arc = Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=args.env_dir)
+    arc = Arcade(operation_mode=OperationMode.NORMAL, environments_dir=args.env_dir)
 
     # Query environment metadata for baseline_actions and total_levels
     env_meta_baseline_actions = []

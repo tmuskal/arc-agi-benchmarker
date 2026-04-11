@@ -104,7 +104,8 @@ with open('.arc-agi-benchmarks/config.json') as f:
 env_dir = cfg.get('environments_dir', './environment_files')
 
 from arc_agi import Arcade, OperationMode
-arc = Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=env_dir)
+op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
+arc = Arcade(operation_mode=op_mode, environments_dir=env_dir)
 envs = arc.get_environments()
 
 result = []
@@ -148,15 +149,11 @@ with open('.arc-agi-benchmarks/config.json') as f:
 
 config_hash = hashlib.sha256(json.dumps(cfg.get('harness_config', {}), sort_keys=True).encode()).hexdigest()
 
-import arc_agi
+import importlib.metadata
 try:
-    arc_agi_version = arc_agi.__version__
-except AttributeError:
-    try:
-        import importlib.metadata
-        arc_agi_version = importlib.metadata.version('arc-agi')
-    except Exception:
-        arc_agi_version = 'unknown'
+    arc_agi_version = importlib.metadata.version('arc-agi')
+except Exception:
+    arc_agi_version = 'unknown'
 
 meta = {
     'run_id': run_id,
@@ -249,7 +246,8 @@ else:
     scorecard_id = None
 
 # Create Arcade and environment with consistent scorecard identity
-arc = Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=env_dir, recordings_dir=recordings_dir)
+op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
+arc = Arcade(operation_mode=op_mode, environments_dir=env_dir, recordings_dir=recordings_dir)
 if scorecard_id is None:
     import uuid as _uuid
     scorecard_id = str(_uuid.uuid4())
@@ -553,7 +551,8 @@ with open(scorecard_id_file) as f:
 # controls recording file paths, not scorecard state reattachment.
 # This is a known limitation: the finalization scorecard is rebuilt from
 # replayed actions, not resumed from the gameplay scorecard.
-arc = Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=env_dir, recordings_dir=recordings_dir)
+op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
+arc = Arcade(operation_mode=op_mode, environments_dir=env_dir, recordings_dir=recordings_dir)
 
 for game_id in game_ids:
     session_file = f'{run_dir}/session_{game_id}.json'
@@ -626,7 +625,8 @@ with open(f'{run_dir}/scorecard.json') as f:
 
 # Get environment metadata (title, tags) from arc.get_environments(),
 # NOT from the scorecard -- the scorecard does not carry this metadata.
-arc = Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=env_dir)
+op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
+arc = Arcade(operation_mode=op_mode, environments_dir=env_dir)
 env_list = arc.get_environments()
 env_metadata = {}
 for e in env_list:

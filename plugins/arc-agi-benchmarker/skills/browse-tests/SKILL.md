@@ -87,7 +87,8 @@ env_dir = cfg.get('environments_dir', './environment_files')
 
 from arc_agi import Arcade, OperationMode
 
-arc = Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=env_dir)
+op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
+arc = Arcade(operation_mode=op_mode, environments_dir=env_dir)
 envs = arc.get_environments()
 
 if not envs:
@@ -202,7 +203,8 @@ env_dir = cfg.get('environments_dir', './environment_files')
 
 from arc_agi import Arcade, OperationMode
 
-arc = Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=env_dir)
+op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
+arc = Arcade(operation_mode=op_mode, environments_dir=env_dir)
 envs = arc.get_environments()
 
 game_id = '<GAME_ID>'

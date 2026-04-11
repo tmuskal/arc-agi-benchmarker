@@ -1,3 +1,6 @@
 .a5c/
 initial.request.md
 specs/
+.arc-agi-venv/
+.arc-agi-benchmarks/
+environment_files/

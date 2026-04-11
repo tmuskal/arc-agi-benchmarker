@@ -75,7 +75,7 @@ Use `$VENV_PIP` and `$VENV_PYTHON` for all subsequent commands.
 First check if `arc-agi` is already installed:
 
 ```bash
-$VENV_PYTHON -c "import arc_agi; print(arc_agi.__version__)" 2>/dev/null
+$VENV_PYTHON -c "import importlib.metadata; print(importlib.metadata.version('arc-agi'))" 2>/dev/null
 ```
 
 **If not installed**, install it:
@@ -99,8 +99,9 @@ Run a verification script to confirm both `arc_agi` and `arcengine` are importab
 
 ```bash
 $VENV_PYTHON -c "
-import arc_agi
-print(f'arc_agi version: {arc_agi.__version__}')
+import importlib.metadata
+version = importlib.metadata.version('arc-agi')
+print(f'arc_agi version: {version}')
 
 from arcengine import GameAction, GameState
 print('arcengine: OK')
@@ -156,7 +157,7 @@ from datetime import datetime, timezone
 
 config = {
     'version': '1.0.0',
-    'operation_mode': 'offline',
+    'operation_mode': 'normal',
     'environments_dir': './environment_files',
     'recordings_dir': '.arc-agi-benchmarks/runs',
     'default_seed': 0,
@@ -217,7 +218,8 @@ try:
         cfg = json.load(f)
     env_dir = cfg.get('environments_dir', './environment_files')
 
-    arc = Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=env_dir)
+    op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
+    arc = Arcade(operation_mode=op_mode, environments_dir=env_dir)
     envs = arc.get_environments()
     env_count = len(envs)
     print(f'Environment count: {env_count}')
@@ -268,8 +270,9 @@ import json
 with open('.arc-agi-benchmarks/config.json') as f:
     cfg = json.load(f)
 env_dir = cfg.get('environments_dir', './environment_files')
+op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
 
-arc = Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=env_dir)
+arc = Arcade(operation_mode=op_mode, environments_dir=env_dir)
 envs = arc.get_environments()
 
 if not envs:
