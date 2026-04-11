@@ -6,6 +6,17 @@ description: Execute benchmark runs against ARC-AGI games - plays games with Cla
 
 You are running an ARC-AGI benchmark. **You are the game-playing agent.** You will observe grid data, reason about patterns, choose actions, and submit them. Your goal is to complete as many levels as possible, as efficiently as possible (fewer actions = higher score).
 
+## CRITICAL RULE: No Source Code Reading
+
+**You MUST NOT read, open, or examine the Python source code of game environments** located under `environment_files/` (or wherever `environments_dir` points). You also must NOT read arc-agi or arcengine library source code to understand game mechanics.
+
+Understanding of game mechanics must come ONLY from:
+- **Behavioral observation** -- observing how frames change after each action
+- **The API surface** described in this skill (obs.frame, obs.state, env.step, etc.)
+- **Trial and error** during gameplay
+
+This is a fundamental requirement of the benchmark. Reading source code would invalidate the benchmark results. If you encounter errors, debug them using error messages and the API documentation in this skill, not by reading library internals.
+
 ## Step 1: Pre-flight Checks
 
 ### 1a: Detect Virtual Environment
@@ -43,9 +54,10 @@ except FileNotFoundError:
 
 Extract from the config:
 - `environments_dir` (default: `./environment_files`)
+- `operation_mode` (default: `normal`)
 - `default_seed` (default: `0`)
 - `default_max_steps` (default: `500`)
-- `default_max_resets` (default: `3`)
+- `default_max_resets` (default: `10`)
 
 ### 1c: Parse User Arguments
 
@@ -160,7 +172,7 @@ meta = {
     'harness': 'claude-code',
     'timestamp': datetime.now(timezone.utc).isoformat(),
     'duration_seconds': 0,
-    'game_set': game_selection,  # Store the user's original selection intent: 'all', a tag, or comma-separated IDs
+    'game_set': game_selection,
     'game_ids': game_ids,
     'seed': seed,
     'max_steps': max_steps,
@@ -190,182 +202,22 @@ For EACH `game_id` in the selected game list, perform the following sub-steps. T
 
 ### 3a: Initialize Game
 
-Create the game driver script and initialize the game. The driver script is a persistent Python script that maintains Arcade/environment state across action steps for a single game, avoiding the need to recreate the Arcade and replay actions on every step.
-
-First, write the driver script:
+Copy the game driver script from the plugin's scripts directory to the run directory, then initialize the game.
 
 ```bash
-$VENV_PYTHON -c "
-import json, os
-run_dir = '.arc-agi-benchmarks/runs/<RUN_ID>'
-game_id = '<GAME_ID>'
-seed = <SEED>
-
-driver_code = '''
-import json, sys, os
-from arc_agi import Arcade, OperationMode
-from arcengine import GameAction
-
-# Read config
-with open('.arc-agi-benchmarks/config.json') as f:
-    cfg = json.load(f)
-env_dir = cfg.get('environments_dir', './environment_files')
-run_dir = sys.argv[1]
-game_id = sys.argv[2]
-seed = int(sys.argv[3])
-request_file = sys.argv[4]
-
-recordings_dir = run_dir + '/recordings'
-
-# Read the action request
-with open(request_file) as f:
-    request = json.load(f)
-
-command = request.get('command', 'init')
-
-# Load session
-session_file = os.path.join(run_dir, f'session_{game_id}.json')
-if command == 'init':
-    session = {
-        'game_id': game_id,
-        'seed': seed,
-        'action_history': [],
-        'resets': 0,
-        'steps': 0
-    }
-else:
-    with open(session_file) as f:
-        session = json.load(f)
-
-# Load or create scorecard ID for consistent identity across invocations
-scorecard_id_file = os.path.join(run_dir, 'scorecard_id.txt')
-if os.path.exists(scorecard_id_file):
-    with open(scorecard_id_file) as f:
-        scorecard_id = f.read().strip()
-else:
-    scorecard_id = None
-
-# Create Arcade and environment with consistent scorecard identity
-op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
-arc = Arcade(operation_mode=op_mode, environments_dir=env_dir, recordings_dir=recordings_dir)
-if scorecard_id is None:
-    import uuid as _uuid
-    scorecard_id = str(_uuid.uuid4())
-    with open(scorecard_id_file, 'w') as f:
-        f.write(scorecard_id)
-
-# arc.make() returns an EnvironmentWrapper, NOT a FrameDataRaw observation.
-# arc.make() calls reset internally; do NOT call env.reset() again.
-env = arc.make(game_id, seed=seed, save_recording=True, render_mode=None, scorecard_id=scorecard_id)
-obs = env.observation_space  # Get the initial FrameDataRaw observation
-
-# Replay all previous actions to restore state.
-# PERFORMANCE NOTE: This replays the full action history on every invocation,
-# resulting in O(n^2) total work across a game session. For games approaching
-# max_steps (e.g., 500 steps), replay will be noticeably slow. This is a known
-# tradeoff of the stateless driver design.
-# FUTURE OPTIMIZATION: Consider checkpointing environment state every N steps
-# to reduce replay length, or batching multiple actions per driver invocation.
-for prev in session.get('action_history', []):
-    if prev.get('is_reset'):
-        obs = env.reset()
-    else:
-        action = GameAction(prev['action_id'])
-        step_kwargs = {'action': action}
-        if prev.get('data'):
-            step_kwargs['data'] = prev['data']
-        if prev.get('reasoning'):
-            step_kwargs['reasoning'] = prev['reasoning']
-        obs = env.step(**step_kwargs)
-    if obs is None:
-        print(json.dumps({'error': 'env.step() or env.reset() returned None during replay'}))
-        sys.exit(1)
-
-# Execute the requested command
-if command == 'init':
-    pass  # obs already has the initial state from make()
-elif command == 'step':
-    action_name = request['action']
-    action = GameAction[action_name]
-    step_kwargs = {'action': action}
-    if request.get('data'):
-        step_kwargs['data'] = request['data']
-    if request.get('reasoning'):
-        step_kwargs['reasoning'] = request['reasoning']
-    obs = env.step(**step_kwargs)
-    if obs is None:
-        print(json.dumps({'error': f'env.step() returned None for action {action_name}'}))
-        sys.exit(1)
-
-    # Update session - store action_id (int) for replay via GameAction(int)
-    entry = {'action': action_name, 'action_id': action.value}
-    if request.get('data'):
-        entry['data'] = request['data']
-    if request.get('reasoning'):
-        entry['reasoning'] = request['reasoning']
-    session['action_history'].append(entry)
-    session['steps'] += 1
-elif command == 'reset':
-    obs = env.reset()
-    if obs is None:
-        print(json.dumps({'error': 'env.reset() returned None'}))
-        sys.exit(1)
-    session['resets'] += 1
-    session['action_history'].append({'is_reset': True})
-
-# Extract observation - recursively convert numpy arrays to lists
-import numpy as np
-def to_serializable(obj):
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    if isinstance(obj, list):
-        return [to_serializable(x) for x in obj]
-    return obj
-
-frame = to_serializable(obs.frame)
-
-# Use env.action_space (returns GameAction objects with .name) instead of
-# obs.available_actions (which returns integer IDs, not GameAction objects).
-available_actions = []
-action_details = {}
-for a in env.action_space:
-    name = a.name if hasattr(a, 'name') else str(a)
-    available_actions.append(name)
-    # NOTE: is_complex() returns True when the action requires x,y data.
-    action_details[name] = {
-        'is_complex': a.is_complex() if hasattr(a, 'is_complex') else False
-    }
-
-result = {
-    'frame': frame,
-    'state': obs.state.name if hasattr(obs.state, 'name') else str(obs.state),
-    'levels_completed': getattr(obs, 'levels_completed', 0),
-    'win_levels': getattr(obs, 'win_levels', 0),
-    'available_actions': available_actions,
-    'action_details': action_details,
-    'guid': getattr(obs, 'guid', ''),
-    'step_number': session['steps'],
-    'resets': session['resets']
-}
-
-# Save session
-with open(session_file, 'w') as f:
-    json.dump(session, f)
-
-# Write observation output
-obs_file = os.path.join(run_dir, f'observation_{game_id}.json')
-with open(obs_file, 'w') as f:
-    json.dump(result, f, indent=2)
-
-print(json.dumps(result))
-'''
-
-driver_path = os.path.join(run_dir, 'game_driver.py')
-with open(driver_path, 'w') as f:
-    f.write(driver_code)
-print(json.dumps({'driver_path': driver_path}))
-"
+cp "$(dirname "$0")/../plugins/arc-agi-benchmarker/skills/run-benchmark/scripts/game_driver.py" \
+   .arc-agi-benchmarks/runs/<RUN_ID>/game_driver.py 2>/dev/null || \
+cp plugins/arc-agi-benchmarker/skills/run-benchmark/scripts/game_driver.py \
+   .arc-agi-benchmarks/runs/<RUN_ID>/game_driver.py 2>/dev/null || \
+# If the plugin path is not found, locate it from the plugin cache:
+find ~/.claude/plugins -path "*/arc-agi-benchmarker/*/scripts/game_driver.py" -exec cp {} .arc-agi-benchmarks/runs/<RUN_ID>/game_driver.py \; 2>/dev/null
 ```
+
+**NOTE**: The game driver script is at `skills/run-benchmark/scripts/game_driver.py` relative to the plugin root. You need to find the actual installed path. Common locations:
+- Project-local: `plugins/arc-agi-benchmarker/skills/run-benchmark/scripts/game_driver.py`
+- Plugin cache: `~/.claude/plugins/cache/arc-agi-benchmarker/*/skills/run-benchmark/scripts/game_driver.py`
+
+If the copy fails, you may write the driver script inline (see `scripts/game_driver.py` for the reference implementation).
 
 Then initialize the game by writing an init request and running the driver:
 
@@ -386,7 +238,9 @@ $VENV_PYTHON .arc-agi-benchmarks/runs/<RUN_ID>/game_driver.py \
 
 **IMPORTANT**: The angle-bracket placeholders (`<RUN_ID>`, `<GAME_ID>`, `<SEED>`) are NOT variables. You MUST substitute them with actual literal values before running the command.
 
-Parse the observation JSON output. Note the `frame`, `state`, `available_actions`, and `action_details`.
+Parse the observation JSON output. **The JSON result is always the LAST line of stdout.** Earlier lines may contain INFO log messages from arc_agi -- ignore them. Alternatively, read the observation from `observation_<GAME_ID>.json` which the driver writes to disk.
+
+Note the `frame`, `state`, `available_actions`, and `action_details`.
 
 > **Note on recordings**: Recordings are saved by arcengine using the naming convention `{game_id}.{agent_type}.{max_actions}.{guid}.recording.jsonl` within the recordings directory (under a scorecard ID subdirectory).
 
@@ -399,20 +253,32 @@ Read the `frame` data from the observation. The frame is a list of 2D integer ar
 #### How to Read ARC-AGI Grids
 
 1. **Structure**: `frame` is a list of layers. Each layer is a 2D array (rows x columns) of integers.
-2. **Colors**: Each integer represents a color. Typical mapping:
-   - `0` = black / empty / background
-   - `1` through `9` = distinct colors (the exact visual color does not matter; what matters is the pattern of WHICH cells share the same value)
-3. **Grid size**: Grids start small (e.g., 3x3 on level 1) and grow with each level (up to 30x30 on level 5). The same transformation rule applies at all sizes.
+2. **Grid size**: All grids are **64x64 pixels**. Do NOT assume small grids. The game world is rendered at 64x64 regardless of the logical puzzle size inside.
+3. **Colors**: Each integer represents a color. Values range from `0` to `15` or higher:
+   - `0` = black / empty / transparent
+   - `1`-`15` = distinct colors
+   - The exact visual color does not matter; what matters is the pattern of WHICH cells share the same value.
+4. **Multiple layers**: Some games use multiple frame layers. Check `len(frame)` and examine each layer.
+
+#### Grid Layout Patterns
+
+ARC-AGI games typically organize the 64x64 grid into regions:
+
+- **Header/UI area** (top rows): Level indicators, counters, color selectors. Look for small bordered boxes showing current state.
+- **Example pairs**: Many games show one or more input-output example pairs to demonstrate the transformation rule. These appear as bordered rectangles with patterns inside.
+- **Target/work area**: A separate region where you must apply the discovered rule. Often has empty (0-value) cells waiting to be filled.
+- **Status bar** (row 63): Often a solid bar of a single color indicating game progress or state.
+- **Separators**: Color 4 (often yellow) borders separate regions. Color 5 (often gray) is common background fill.
 
 #### Pattern Analysis Strategy
 
 When observing a frame, look for:
 
-1. **Spatial patterns**: Symmetry (horizontal, vertical, rotational), borders, filled regions, isolated objects
-2. **Color relationships**: Which colors appear? Are they grouped? Is there a foreground/background distinction?
-3. **Transformation clues**: If you have seen a previous level's input and output, what changed? Was it a fill, a copy, a rotation, a reflection, a color swap?
-4. **Object identification**: Connected groups of same-colored cells often form "objects". Count them, note their shapes and positions.
-5. **Regularities**: Repeating patterns, grids-within-grids, alternating colors
+1. **Region identification**: First identify distinct regions by looking for borders (rectangles of a single color). Map out where the examples are and where the target area is.
+2. **Spatial patterns**: Symmetry (horizontal, vertical, rotational), borders, filled regions, isolated objects within each region.
+3. **Color relationships**: Which colors appear? Are they grouped? Is there a foreground/background distinction?
+4. **Transformation clues**: Compare input regions to output regions. What changed? Was it a fill, a copy, a rotation, a reflection, a color swap?
+5. **Object identification**: Connected groups of same-colored cells often form "objects". Count them, note their shapes and positions.
 
 #### Multi-Level Learning
 
@@ -420,6 +286,28 @@ Games have multiple levels (typically 5). The SAME rule applies across all level
 - On level 1: experiment to discover what actions do
 - On levels 2+: apply the rule you learned from earlier levels
 - If you fail a level and reset, try a different approach using what you learned
+
+#### Game Type Recognition
+
+Identify the game type from the available actions:
+
+- **Keyboard-only games** (ACTION1-ACTION5, no complex actions): Actions control transformations, movements, or selections. Effects may be subtle -- compare frames cell-by-cell after each action.
+- **Click-only games** (only ACTION6 with `is_complex: true`): Require x,y coordinates targeting specific grid cells. You must figure out WHERE to click.
+- **Hybrid games** (keyboard + click): Keyboard actions may change mode/state, click actions target cells. Try keyboard actions first to understand modes.
+
+#### Troubleshooting: When Actions Seem to Do Nothing
+
+This is common and does NOT mean the action failed. Possible reasons and strategies:
+
+1. **Subtle changes**: The effect may be a single cell changing in a border or counter area. Compare frames cell-by-cell, especially in header/UI regions (rows 0-10) and status areas.
+2. **Click targeting**: For click games, try clicking on:
+   - Empty (0-value) cells in the target area
+   - Colored cells within bordered regions
+   - Border edges or intersections
+   - Cells at specific grid coordinates matching a pattern you see
+3. **State changes without visual change**: Some actions change internal state (like selecting a color or tool) without changing the visible grid. Try an action, then try a click -- the click behavior may differ based on the prior action.
+4. **Wrong area**: You may be clicking outside the interactive region. Focus clicks within bordered areas that contain the target/work zone.
+5. **Energy/resource constraints**: Some games have resource bars that deplete with each action. If a bar is shrinking, choose actions more carefully.
 
 ### 3c: Choose and Submit an Action
 
@@ -433,7 +321,7 @@ Based on your analysis, select an action from `available_actions`.
 - `x` is the column index (0-based from left)
 - `y` is the row index (0-based from top)
 
-Submit the action by writing an action request JSON file and running the game driver. This avoids shell variable injection issues and keeps state management clean:
+Submit the action by writing an action request JSON file and running the game driver:
 
 ```bash
 $VENV_PYTHON -c "
@@ -460,11 +348,13 @@ Replace the following angle-bracket placeholders in the Python code with actual 
 - `<RUN_ID>`: the current run ID (embed as a Python string literal)
 - `<GAME_ID>`: the current game ID (embed as a Python string literal)
 - `<SEED>`: the seed value (embed as a Python integer literal)
-- `ACTION_NAME_HERE`: the GameAction enum name (e.g., `ACTION1`, `ACTION3`) -- write this as a JSON string value in the Python dict
-- `YOUR_REASONING_HERE`: your reasoning for this action -- write this as a string value inside a dict, e.g., `{'thought': 'your reasoning'}`. The API expects `reasoning` to be `dict[str, Any]`.
+- `ACTION_NAME_HERE`: the GameAction enum name (e.g., `ACTION1`, `ACTION3`)
+- `YOUR_REASONING_HERE`: your reasoning for this action
 - For complex actions, uncomment the `request['data']` line and set `COLUMN` (x) and `ROW` (y) to integer values
 
-**IMPORTANT**: Action parameters (action name, reasoning, coordinates) are written to a JSON file and read by the driver script. This avoids shell injection and SyntaxError issues that occur with string interpolation. Never embed free-form text directly in Python source via shell variables.
+**IMPORTANT**: Action parameters (action name, reasoning, coordinates) are written to a JSON file and read by the driver script. This avoids shell injection and SyntaxError issues. Never embed free-form text directly in Python source via shell variables.
+
+**IMPORTANT**: Parse only the LAST line of stdout as JSON. The driver may print INFO log lines before the JSON result. Alternatively, read `observation_<GAME_ID>.json` from the run directory.
 
 ### 3d: Evaluate the Result
 
@@ -472,23 +362,13 @@ After each step, check the `state` field in the observation:
 
 | State | Meaning | Action |
 |-------|---------|--------|
-| `PLAYING` | Game continues | Go back to 3b (observe and reason) |
+| `NOT_FINISHED` | Game continues | Go back to 3b (observe and reason) |
 | `WIN` | All levels completed! | Report success, proceed to next game |
 | `GAME_OVER` | Failed the current level | Check reset budget (see below) |
 
 **On GAME_OVER:**
 
-Load the session to check reset count:
-
-```bash
-$VENV_PYTHON -c "
-import json
-run_dir = '.arc-agi-benchmarks/runs/<RUN_ID>'
-with open(f'{run_dir}/session_<GAME_ID>.json') as f:
-    session = json.load(f)
-print(json.dumps({'resets': session['resets'], 'steps': session['steps']}))
-"
-```
+Check the session's reset count from the observation output (`resets` field):
 
 If `resets < max_resets`:
 - Issue a reset command through the game driver:
@@ -528,197 +408,33 @@ After all games have been played:
 
 ### 4a: Close Scorecard and Save Results
 
-Write a Python script that does the following (embed `run_dir`, `game_ids`, and `seed` as literal values -- do NOT use shell variable interpolation):
+Run the finalization script from the plugin's scripts directory. The script replays all games to populate the scorecard, then saves scorecard.json, game-results.json, and updates run-meta.json.
 
-```python
-import json, os
-from arc_agi import Arcade, OperationMode
-from arcengine import GameAction
-
-run_dir = '<RUN_DIR>'  # embed literal value
-game_ids = [...]       # embed literal list
-seed = 0               # embed literal value
-
-with open('.arc-agi-benchmarks/config.json') as f:
-    cfg = json.load(f)
-env_dir = cfg.get('environments_dir', './environment_files')
-recordings_dir = run_dir + '/recordings'
-
-# Load the scorecard ID that was used during gameplay
-scorecard_id_file = os.path.join(run_dir, 'scorecard_id.txt')
-with open(scorecard_id_file) as f:
-    scorecard_id = f.read().strip()
-
-# Create Arcade and replay all games to populate the scorecard.
-# NOTE: This creates a new Arcade instance with a new internal scorecard.
-# We pass scorecard_id to arc.make() so recordings are filed under the same
-# scorecard directory used during gameplay. However, in OFFLINE mode the new
-# Arcade's scorecard is a fresh object -- the scorecard_id parameter only
-# controls recording file paths, not scorecard state reattachment.
-# This is a known limitation: the finalization scorecard is rebuilt from
-# replayed actions, not resumed from the gameplay scorecard.
-op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
-arc = Arcade(operation_mode=op_mode, environments_dir=env_dir, recordings_dir=recordings_dir)
-
-for game_id in game_ids:
-    session_file = f'{run_dir}/session_{game_id}.json'
-    if not os.path.exists(session_file):
-        continue
-
-    with open(session_file) as f:
-        session = json.load(f)
-
-    if session.get('game_id') != game_id:
-        continue
-
-    env = arc.make(game_id, seed=seed, save_recording=True, render_mode=None, scorecard_id=scorecard_id)
-    # arc.make() returns an EnvironmentWrapper. Do NOT call env.reset() again.
-
-    for prev in session.get('action_history', []):
-        if prev.get('is_reset'):
-            obs = env.reset()
-        else:
-            action = GameAction(prev['action_id'])
-            step_kwargs = {'action': action}
-            if prev.get('data'):
-                step_kwargs['data'] = prev['data']
-            if prev.get('reasoning'):
-                step_kwargs['reasoning'] = prev['reasoning']
-            obs = env.step(**step_kwargs)
-        if obs is None:
-            print(json.dumps({'error': f'Replay returned None for game {game_id}'}))
-            break
-
-# Finalize the scorecard (marks it as complete, prevents further updates)
-final_scorecard = arc.close_scorecard()
-
-# Save scorecard using model_dump_json for clean serialization
-try:
-    scorecard_json = final_scorecard.model_dump_json(indent=2)
-    with open(f'{run_dir}/scorecard.json', 'w') as f:
-        f.write(scorecard_json)
-except (AttributeError, TypeError):
-    scorecard_dict = final_scorecard.model_dump() if hasattr(final_scorecard, 'model_dump') else {}
-    with open(f'{run_dir}/scorecard.json', 'w') as f:
-        json.dump(scorecard_dict, f, indent=2, default=str)
-
-print(json.dumps({
-    'score': getattr(final_scorecard, 'score', 0),
-    'total_environments': getattr(final_scorecard, 'total_environments', 0),
-    'total_environments_completed': getattr(final_scorecard, 'total_environments_completed', 0),
-    'total_levels_completed': getattr(final_scorecard, 'total_levels_completed', 0),
-    'total_levels': getattr(final_scorecard, 'total_levels', 0),
-    'total_actions': getattr(final_scorecard, 'total_actions', 0)
-}, default=str))
+```bash
+$VENV_PYTHON plugins/arc-agi-benchmarker/skills/run-benchmark/scripts/finalize.py \
+  .arc-agi-benchmarks/runs/<RUN_ID> \
+  <SEED>
 ```
+
+**NOTE**: Find the finalize.py script in the same location as game_driver.py (plugin root or cache). If the path doesn't work, try:
+```bash
+find ~/.claude/plugins -path "*/arc-agi-benchmarker/*/scripts/finalize.py" -exec $VENV_PYTHON {} .arc-agi-benchmarks/runs/<RUN_ID> <SEED> \;
+```
+
+The script reads `game_ids` from `run-meta.json` automatically.
 
 ### 4b: Generate Environment Scores
 
-Write a Python script that generates environment scores (embed `run_dir` as a literal value -- do NOT use shell variable interpolation):
+Run the environment scores script:
 
-```python
-import json
-from arc_agi import Arcade, OperationMode
-
-run_dir = '<RUN_DIR>'  # embed literal value
-
-with open('.arc-agi-benchmarks/config.json') as f:
-    cfg = json.load(f)
-env_dir = cfg.get('environments_dir', './environment_files')
-
-with open(f'{run_dir}/scorecard.json') as f:
-    scorecard = json.load(f)
-
-# Get environment metadata (title, tags) from arc.get_environments(),
-# NOT from the scorecard -- the scorecard does not carry this metadata.
-op_mode = OperationMode(cfg.get('operation_mode', 'normal'))
-arc = Arcade(operation_mode=op_mode, environments_dir=env_dir)
-env_list = arc.get_environments()
-env_metadata = {}
-for e in env_list:
-    eid = getattr(e, 'game_id', getattr(e, 'id', str(e)))
-    env_metadata[eid] = {
-        'title': getattr(e, 'title', eid),
-        'tags': getattr(e, 'tags', [])
-    }
-
-run_id_from_meta = scorecard.get('card_id', '')
-env_scores = {
-    'run_id': run_id_from_meta,
-    'overall_score': scorecard.get('score', 0) * 100,
-    'environments': []
-}
-
-# NOTE: The scorecard serializes per-game data under the 'games' field, NOT 'environments'.
-for env_entry in scorecard.get('games', []):
-    env_id = env_entry.get('id', '')
-    env_score = env_entry.get('score', 0)
-    runs = env_entry.get('runs', [])
-
-    # Use best run data
-    best_run = max(runs, key=lambda r: r.get('score', 0)) if runs else {}
-
-    meta = env_metadata.get(env_id, {})
-    env_data = {
-        'game_id': env_id,
-        'title': meta.get('title', env_id),
-        'tags': meta.get('tags', []),
-        'score': env_score * 100,
-        'levels_completed': best_run.get('levels_completed', 0),
-        'total_levels': best_run.get('number_of_levels', 5),
-        'total_actions': best_run.get('actions', 0),
-        'total_resets': best_run.get('resets', 0),
-        'state': best_run.get('state', 'NOT_PLAYED'),
-        'completed': best_run.get('completed', False),
-        'levels': []
-    }
-
-    level_scores = best_run.get('level_scores', [])
-    level_actions = best_run.get('level_actions', [])
-    level_baselines = best_run.get('level_baseline_actions', [])
-
-    for i in range(len(level_scores)):
-        env_data['levels'].append({
-            'level_index': i + 1,
-            'score': level_scores[i] * 100 if i < len(level_scores) else 0,
-            'actions_taken': level_actions[i] if i < len(level_actions) else 0,
-            'baseline_actions': level_baselines[i] if i < len(level_baselines) else 0,
-            'completed': level_scores[i] > 0 if i < len(level_scores) else False
-        })
-
-    env_scores['environments'].append(env_data)
-
-with open(f'{run_dir}/environment-scores.json', 'w') as f:
-    json.dump(env_scores, f, indent=2)
-
-print(json.dumps({'status': 'environment-scores.json written', 'environments': len(env_scores['environments'])}))
+```bash
+$VENV_PYTHON plugins/arc-agi-benchmarker/skills/run-benchmark/scripts/env_scores.py \
+  .arc-agi-benchmarks/runs/<RUN_ID>
 ```
 
-### 4c: Update Run Metadata
+Same path resolution as finalize.py.
 
-Write a Python script that updates run metadata (embed `run_dir` as a literal value -- do NOT use shell variable interpolation):
-
-```python
-import json
-from datetime import datetime, timezone
-
-run_dir = '<RUN_DIR>'  # embed literal value
-
-with open(f'{run_dir}/run-meta.json') as f:
-    meta = json.load(f)
-
-start_time = datetime.fromisoformat(meta['timestamp'])
-now = datetime.now(timezone.utc)
-meta['duration_seconds'] = (now - start_time).total_seconds()
-meta['status'] = 'completed'
-
-with open(f'{run_dir}/run-meta.json', 'w') as f:
-    json.dump(meta, f, indent=2)
-
-print(json.dumps({'status': 'completed', 'duration_seconds': meta['duration_seconds']}))
-```
-
-### 4d: Print Final Summary
+### 4c: Print Final Summary
 
 After all files are saved, print a summary:
 
@@ -755,6 +471,14 @@ This means:
 - The finalization step (Step 4a) reads each `session_<game_id>.json` directly to replay actions and build the final scorecard
 - Resets do NOT re-initialize the session. A reset appends `{'is_reset': True}` to the action history and increments the reset counter. The session file is updated in-place. Only the `init` command creates a fresh session, which happens once per game at the start.
 
+## Important: GameAction Enum Gotcha
+
+**NEVER construct GameAction by integer value**: `GameAction(6)` will raise `ValueError: 6 is not a valid GameAction` because the enum internally uses composite tuple values.
+
+**ALWAYS use name-based lookup**: `GameAction['ACTION6']` works correctly.
+
+This applies everywhere: the game driver replay loop, the finalization replay, and any custom scripts.
+
 ## Error Handling
 
 ### Game Initialization Failure
@@ -769,6 +493,12 @@ If `env.step()` raises an exception:
 - Log the error and the action that caused it
 - Treat it as a GAME_OVER
 - Use a reset if budget allows, otherwise skip the game
+
+### Stdout JSON Parsing
+The game driver prints INFO log lines from arc_agi before the JSON result. To parse correctly:
+- **Option A**: Read only the LAST line of stdout as JSON
+- **Option B**: Read `observation_<GAME_ID>.json` from the run directory (the driver writes this file on every invocation)
+- **Option C**: Redirect stderr in the shell command (INFO logs go to stdout unfortunately, not stderr, so this does not help -- use Option A or B)
 
 ### Recording Collection
 Recordings are automatically saved by arcengine when `save_recording=True`. They are stored under the `recordings_dir` you passed to `Arcade()`, using the naming convention `{game_id}.{agent_type}.{max_actions}.{guid}.recording.jsonl` (within a scorecard ID subdirectory). After the run, verify recordings exist:
@@ -827,8 +557,9 @@ Your score depends on efficiency. Scores are on a **0.0 to 1.0 scale** internall
 - Always use `render_mode=None`. NEVER use `terminal-fast` -- it produces ANSI escape codes you cannot parse.
 - Always use `$VENV_PYTHON` (the shell variable set in Step 1a), never system Python.
 - The `reasoning` parameter in `env.step()` must be a **dict** (e.g., `reasoning={'thought': 'your reasoning here'}`). The API expects `dict[str, Any]`, not a plain string.
-- Frame data may be large for higher levels (up to 30x30 grids). Focus on the pattern, not individual cells.
-- If frame data is too large to display clearly, extract key features (dimensions, unique colors, border patterns) rather than printing the entire grid.
+- Frame data is always 64x64. Focus on identifying regions, borders, and patterns rather than printing the entire grid.
+- Always read `operation_mode` from config: `OperationMode(cfg.get('operation_mode', 'normal'))`. Do NOT hardcode `OperationMode.OFFLINE`.
+- The `get_scorecard()` method returns a JSON string (via `str()`). Call it BEFORE `close_scorecard()`. The `close_scorecard()` return value is an `EnvironmentScorecard` object -- do NOT use `model_dump()` on it (it doesn't work). Use `json.loads(str(arc.get_scorecard()))` instead.
 
 ## Step 5: Generate Report
 

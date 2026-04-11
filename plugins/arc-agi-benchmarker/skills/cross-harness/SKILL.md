@@ -61,7 +61,7 @@ Extract from the config:
 - `environments_dir` (default: `./environment_files`)
 - `default_seed` (default: `0`)
 - `default_max_steps` (default: `500`)
-- `default_max_resets` (default: `3`)
+- `default_max_resets` (default: `10`)
 
 ### 1c: Verify arc-agi is Available
 
@@ -156,7 +156,7 @@ print(json.dumps({
     'game_ids': ref_meta.get('game_ids', []),
     'seed': ref_meta.get('seed', 0),
     'max_steps': ref_meta.get('max_steps', 500),
-    'max_resets': ref_meta.get('max_resets', 3),
+    'max_resets': ref_meta.get('max_resets', 10),
     'game_set': ref_meta.get('game_set', 'all')
 }))
 "
@@ -199,7 +199,7 @@ print(json.dumps({
     'game_ids': game_ids,
     'seed': seed,
     'max_steps': cfg.get('default_max_steps', 500),
-    'max_resets': cfg.get('default_max_resets', 3)
+    'max_resets': cfg.get('default_max_resets', 10)
 }))
 "
 ```

@@ -163,7 +163,7 @@ config = {
     'default_seed': 0,
     'default_game_set': 'all',
     'default_max_steps': 500,
-    'default_max_resets': 3,
+    'default_max_resets': 10,
     'harness': 'claude-code',
     'harness_config': {
         'model': 'unknown',
@@ -203,7 +203,98 @@ print('Config updated: .arc-agi-benchmarks/config.json')
 "
 ```
 
-## Step 7: Scan Environments
+## Step 7: Detect Harness Configuration
+
+Populate the `harness_config` section of config.json with information about the current environment. This information is stored in run metadata so benchmark results can be compared meaningfully.
+
+**Detect model**: Check for `CLAUDE_MODEL` or `ANTHROPIC_MODEL` environment variables. If not set, try to detect from the current Claude Code session.
+
+**Detect plugins, skills, and MCP servers**: Use the Claude Code CLI if available, or manually inspect the environment.
+
+```bash
+$VENV_PYTHON -c "
+import json, subprocess, os
+
+with open('.arc-agi-benchmarks/config.json', 'r') as f:
+    config = json.load(f)
+
+harness_config = config.get('harness_config', {})
+
+# Detect model
+model = os.environ.get('CLAUDE_MODEL', os.environ.get('ANTHROPIC_MODEL', ''))
+if not model:
+    # Try to read from Claude Code settings
+    settings_paths = [
+        os.path.expanduser('~/.claude/settings.json'),
+        os.path.expanduser('~/.config/claude/settings.json'),
+    ]
+    for sp in settings_paths:
+        if os.path.exists(sp):
+            try:
+                with open(sp) as f:
+                    settings = json.load(f)
+                model = settings.get('model', '')
+                if model:
+                    break
+            except Exception:
+                pass
+    if not model:
+        model = 'unknown'
+harness_config['model'] = model
+
+# Detect installed plugins
+try:
+    result = subprocess.run(['claude', 'plugins', 'list', '--json'],
+                          capture_output=True, text=True, timeout=10)
+    if result.returncode == 0 and result.stdout.strip():
+        plugins_data = json.loads(result.stdout)
+        harness_config['plugins'] = [p.get('name', str(p)) for p in plugins_data] if isinstance(plugins_data, list) else [result.stdout.strip()]
+except Exception:
+    # Fallback: check plugin directories
+    plugin_dirs = []
+    for pd in ['plugins', os.path.expanduser('~/.claude/plugins/cache')]:
+        if os.path.isdir(pd):
+            for item in os.listdir(pd):
+                if os.path.isdir(os.path.join(pd, item)):
+                    plugin_dirs.append(item)
+    harness_config['plugins'] = plugin_dirs if plugin_dirs else harness_config.get('plugins', [])
+
+# Detect MCP servers
+try:
+    mcp_config_paths = [
+        os.path.expanduser('~/.claude/mcp_servers.json'),
+        os.path.expanduser('~/.config/claude/mcp_servers.json'),
+        '.claude/mcp_servers.json',
+    ]
+    mcp_servers = []
+    for mcp_path in mcp_config_paths:
+        if os.path.exists(mcp_path):
+            with open(mcp_path) as f:
+                mcp_data = json.load(f)
+            if isinstance(mcp_data, dict):
+                mcp_servers.extend(list(mcp_data.keys()))
+    harness_config['mcp_servers'] = mcp_servers
+except Exception:
+    harness_config['mcp_servers'] = harness_config.get('mcp_servers', [])
+
+config['harness_config'] = harness_config
+from datetime import datetime, timezone
+config['updated_at'] = datetime.now(timezone.utc).isoformat()
+
+with open('.arc-agi-benchmarks/config.json', 'w') as f:
+    json.dump(config, f, indent=2)
+print('Harness config populated:')
+print(json.dumps(harness_config, indent=2))
+"
+```
+
+**Note**: The detection is best-effort. If the agent has access to more accurate information about its own model, plugins, skills, or MCP servers, it should update `harness_config` in config.json directly. The key fields are:
+- `model`: The Claude model being used (e.g., `claude-sonnet-4-6`, `claude-opus-4-6`)
+- `plugins`: List of installed plugin names
+- `skills`: List of available skill names (the agent can fill this in from its own knowledge)
+- `mcp_servers`: List of configured MCP server names
+
+## Step 8: Scan Environments
 
 Count the available local environments:
 
@@ -255,9 +346,9 @@ Do NOT stop setup if no environments are found -- just warn the user. The rest o
 
 Record the environment count for the summary.
 
-## Step 8: End-to-End Validation
+## Step 9: End-to-End Validation
 
-Only perform this step if environments were found in Step 7 (count > 0).
+Only perform this step if environments were found in Step 8 (count > 0).
 
 Run a full validation by creating an Arcade, making an environment, resetting it, and verifying FrameDataRaw:
 
@@ -326,7 +417,7 @@ Tell the user:
 > 2. arc-agi package is installed correctly
 > 3. Environment files are accessible
 
-## Step 9: Print Summary
+## Step 10: Print Summary
 
 After all steps complete, print a summary. Gather the information from previous steps and present it clearly:
 
@@ -341,8 +432,14 @@ After all steps complete, print a summary. Gather the information from previous 
   arcengine:      OK
   Environments:   {env_count} available
   Config:         .arc-agi-benchmarks/config.json
-  Operation Mode: OFFLINE
+  Operation Mode: {operation_mode}
+  Max Resets:     10
   Validation:     {PASSED / SKIPPED / FAILED}
+
+  Harness Config:
+    Model:        {model}
+    Plugins:      {plugins_list}
+    MCP Servers:  {mcp_servers_list}
 
   Status:         READY / NOT READY ({reason})
 ============================================
@@ -364,6 +461,7 @@ This skill is safe to run multiple times:
 - Virtual environment creation is skipped if `.arc-agi-venv` already exists
 - Package installation is a no-op if already installed
 - Config is updated (not overwritten) if it already exists
+- Harness config detection always runs fresh
 - Validation always runs fresh
 - No data is lost on re-run
 
@@ -371,5 +469,5 @@ This skill is safe to run multiple times:
 
 - Always use the venv Python/pip (`$VENV_PYTHON` / `$VENV_PIP`), NOT the system Python, for installing and running arc-agi
 - Do NOT use `render_mode="terminal-fast"` -- it produces ANSI escape codes unsuitable for LLM parsing. Always use `render_mode=None` and read `FrameDataRaw.frame` directly
-- OFFLINE mode is the default and recommended mode. It requires no API key and no network access after initial package installation
+- Always read `operation_mode` from config: `OperationMode(cfg.get('operation_mode', 'normal'))`. Do NOT hardcode `OperationMode.OFFLINE`.
 - All benchmark data is stored under `.arc-agi-benchmarks/` in the project root
