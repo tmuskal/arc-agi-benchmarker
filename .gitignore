@@ -1,4 +1,7 @@
-.a5c/
+.a5c/*
+!.a5c/processes/
+.a5c/processes/*
+!.a5c/processes/benchmark-plugin-creator.js
 initial.request.md
 specs/
 .arc-agi-venv/

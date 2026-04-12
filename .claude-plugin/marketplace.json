@@ -13,6 +13,15 @@
       "author": {
         "name": "Tal Muskal"
       }
+    },
+    {
+      "name": "longmemeval-benchmarker",
+      "source": "./plugins/longmemeval-benchmarker",
+      "description": "Benchmark your Claude Code harness+model against the LongMemEval long-term-memory QA benchmark",
+      "version": "1.0.0",
+      "author": {
+        "name": "Tal Muskal"
+      }
     }
   ]
 }

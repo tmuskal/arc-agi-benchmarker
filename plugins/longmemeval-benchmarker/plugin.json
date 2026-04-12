@@ -1,0 +1,13 @@
+{
+  "name": "longmemeval-benchmarker",
+  "version": "1.0.0",
+  "description": "Benchmark your Claude Code harness+model against the LongMemEval long-term-memory QA benchmark. Drives hypothesis generation, LLM-as-judge scoring, resume-from-checkpoint, and cross-harness comparison.",
+  "author": {
+    "name": "Tal Muskal"
+  },
+  "license": "MIT",
+  "commands": [],
+  "skills": "./skills/",
+  "repository": "https://github.com/tmuskal/longmemeval-benchmarker",
+  "keywords": ["longmemeval", "benchmark", "evaluation", "long-context", "memory"]
+}

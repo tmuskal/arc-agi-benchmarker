@@ -1,3 +1,18 @@
+# Claude Code Self-Benchmarking Marketplace
+
+A marketplace of Claude Code plugins that benchmark your Claude Code setup -- including all installed plugins, skills, hooks, and MCP servers -- against external benchmarks.
+
+## Plugins in this marketplace
+
+| Plugin | Benchmark | Description |
+|--------|-----------|-------------|
+| [`arc-agi-benchmarker`](./plugins/arc-agi-benchmarker) | [ARC-AGI-3](https://github.com/arcprize/arc-agi) | Interactive agentic grid-world tasks |
+| [`longmemeval-benchmarker`](./plugins/longmemeval-benchmarker) | [LongMemEval](https://github.com/xiaowu0162/longmemeval) | Long-term memory QA over multi-session chat histories (Claude-default judge, OpenAI fallback, resume-from-checkpoint) |
+
+New benchmark plugins are generated via the `/benchmark-adder` skill (see `.claude/skills/benchmark-adder`), which wraps the `benchmark-plugin-creator` babysitter process.
+
+---
+
 # ARC-AGI Self-Benchmarking
 
 A Claude Code plugin that benchmarks your Claude Code setup -- including all installed plugins, skills, hooks, and MCP servers -- against ARC-AGI-3 interactive tasks.
@@ -133,6 +148,19 @@ All benchmark data is stored locally in `.arc-agi-benchmarks/`:
   comparisons/
     <comparison-id>.json         # Saved comparison results
 ```
+
+## LongMemEval Benchmarker
+
+Benchmark your Claude Code harness+model against [LongMemEval](https://github.com/xiaowu0162/longmemeval), a long-term memory QA benchmark over multi-session chat histories.
+
+```
+/plugin install longmemeval-benchmarker@arc-agi-benchmarker
+/longmemeval-benchmarker:setup           # conda env, clone upstream, download 3 dataset variants
+/longmemeval-benchmarker:run-benchmark   # sequential gen+judge with resume-from-checkpoint
+/longmemeval-benchmarker:report          # per-question-type scorecard
+```
+
+Supports the `_s` (~115k tokens), `_m` (~500 sessions with retrieval), and `_oracle` (evidence-only smoke) dataset variants. Default judge is Claude; OpenAI `gpt-4o` is available as a fallback for upstream reproduction. See [`plugins/longmemeval-benchmarker/README.md`](./plugins/longmemeval-benchmarker/README.md) for details.
 
 ## License
 
