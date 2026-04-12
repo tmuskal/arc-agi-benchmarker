@@ -546,7 +546,7 @@ export const architecturePlanTask = defineTask('architecture-plan', (args, taskC
         '  - Result storage format is versioned and cross-harness comparable',
         '  - Cross-harness strategy is instruction-based (generate prompts for codex/gemini/opencode)',
         'Plan the directory tree: plugins/<name>/, plugin.json, README.md, skills/*/SKILL.md, skills/*/scripts/*',
-        'Plan the run metadata schema: run-meta.json (model, plugins, skills, mcp_servers, harness), game/item-results.json, scorecard.json',
+        'Plan the run metadata schema: run-meta.json (harness, model, plugin_version) PLUS explicit agent-recall fields (plugin_skills_used, mcp_servers_used, tools_used, ad_hoc_instructions, operator_notes). These are NOT auto-detected — the agent running the benchmark recalls them from its own session context and passes them explicitly via a setup-recall JSON or CLI args to enrich_meta.py. The skill must include a "recall your setup" instruction phase before metadata is written, and again at finalization. Plus game/item-results.json, scorecard.json',
         'Plan a spec doc to be written and kept in sync with implementation',
         'If previousFeedback, explicitly address each issue'
       ],
@@ -581,7 +581,7 @@ export const architectureBuildTask = defineTask('architecture-build', (args, tas
         'Write directory-tree.txt showing every planned file',
         'Write plugin.json draft with name, version, description, author, skills, keywords',
         'Write result-schema.json defining run-meta.json, item-results.json, scorecard.json (include schema_version)',
-        'Draft harness_config schema: {model, plugins, skills, mcp_servers}',
+        'Draft harness_config schema: {model, plugins, skills, mcp_servers} — these are DEFAULTS. The run-meta.json also carries per-run agent-supplied recall (plugin_skills_used, mcp_servers_used, tools_used, ad_hoc_instructions, operator_notes) populated explicitly by the benchmark-running agent, NOT auto-detected from disk',
         'For each skill, write a one-paragraph contract (inputs, outputs, side-effects)',
         'Save all artifacts to <pluginDir>-spec/ (alongside, not inside, the plugin dir)'
       ],
@@ -684,7 +684,8 @@ export const scaffoldBuildTask = defineTask('scaffold-build', (args, taskCtx) =>
         'Write skills/setup/SKILL.md following the reference arc-agi-benchmarker setup skill style:',
         '  - step-by-step numbered sections',
         '  - idempotent',
-        '  - includes harness_config detection (model from CLAUDE_MODEL or settings.json, plugins from plugin cache dir, mcp_servers from mcp config files, skills from the agent populates based on its own knowledge)',
+        '  - captures harness_config as DEFAULTS only (model from CLAUDE_MODEL or settings.json; plugins/skills/mcp_servers left as placeholders or example-only values)',
+        '  - does NOT auto-detect plugins/skills/mcp_servers from disk for per-run metadata — that is an AGENTIC RECALL step owned by the run-benchmark skill',
         '  - includes an end-to-end validation step that exercises the benchmark minimally',
         'Put any non-trivial shell/python code into skills/setup/scripts/*.sh or *.py - SKILL.md references them by relative path',
         'Produce a tests/smoke.* script that the setup skill runs for proof-of-correctness',
@@ -792,7 +793,8 @@ export const runnerBuildTask = defineTask('runner-build', (args, taskCtx) => ({
         'Capture structured results in result-schema format',
         'For episodic-env, include explicit "do NOT read game source" rule and troubleshooting',
         'For batch-qa with an LLM judge, support judge pluggability (Claude or external)',
-        'Record harness_config in run-meta.json on every run'
+        'Record harness_config in run-meta.json on every run',
+        'Include an AGENTIC-RECALL instruction phase (before initial meta write AND at finalization): the agent running the skill must recall from its own session context which skills it invoked, which MCP servers it used, which tools it called, any ad-hoc user/operator directives for this run, and a 1-2 sentence operator_notes summary. It passes these as explicit literal values to enrich_meta.py (via --input JSON or CLI args). Do NOT auto-detect from filesystem — auto-detection cannot distinguish "installed" from "actually used"'
       ],
       outputFormat: 'JSON with createdFiles (array), smokeRunReport (object), summary (string)'
     },

@@ -141,6 +141,18 @@ Based on the user's game selection:
 
 Store the final list of `game_ids` to play.
 
+### 2c-recall: Recall Your Setup (do this YOURSELF, agentically)
+
+Before writing `run-meta.json`, pause and recall — from your own session context — the setup that is actually shaping this run. Do NOT auto-detect from filesystem; enumerate what you genuinely used:
+
+- **Skills**: every SKILL.md you invoked in this run (e.g., `setup`, `run-benchmark`, any shared skills like `superpowers:brainstorming`). Include skills from other plugins if you used them.
+- **MCP servers**: servers whose tools you actually called (e.g., `playwright`, `github`). Leave empty `[]` if none.
+- **Tools**: the built-in tools that did the work (e.g., `Bash`, `Read`, `Write`, `Grep`, `Agent`). Include subagent types if relevant.
+- **Ad-hoc instructions**: specific directives the user or operator gave for THIS run that aren't in the defaults (e.g., `max_resets=10`, `use BFS solver`, `target level 7 only`).
+- **Operator notes**: 1–2 sentence free-text describing the execution approach (e.g., "Iterative creative solver with source-code reading, 3 mechanics-verify iterations, per-level retry").
+
+Pass these as explicit literal values into the metadata-write script below. Re-do the recall at finalization time (Step 4c) so late additions are captured.
+
 ### 2d: Write Initial Run Metadata
 
 ```bash
@@ -167,6 +179,17 @@ try:
 except Exception:
     arc_agi_version = 'unknown'
 
+# YOU (the agent running this skill) must supply the following by recalling them
+# from your own context — do NOT auto-detect. List every skill you actually invoked
+# for this run, every MCP server you actually used, every tool/instruction class
+# that shaped your behavior, and any ad-hoc instructions the user gave.
+# Pass them as literal Python values before executing this block.
+plugin_skills_used = <LIST_OF_SKILL_NAMES>   # e.g. ['setup', 'run-benchmark', 'report']
+mcp_servers_used  = <LIST_OF_MCP_SERVERS>    # e.g. ['playwright', 'babysitter'] or []
+tools_used        = <LIST_OF_TOOLS>          # e.g. ['Bash', 'Read', 'Write', 'Agent']
+ad_hoc_instructions = <LIST_OF_USER_DIRECTIVES>  # e.g. ['max_resets=10', 'use BFS solver']
+operator_notes    = '<FREE_TEXT_SUMMARY>'    # 1-2 sentences describing the setup/approach
+
 meta = {
     'run_id': run_id,
     'harness': 'claude-code',
@@ -181,7 +204,13 @@ meta = {
     'harness_config': cfg.get('harness_config', {}),
     'status': 'running',
     'arc_agi_version': arc_agi_version,
-    'plugin_version': '1.0.0'
+    'plugin_version': '1.0.0',
+    # Agent-supplied setup recall (NOT auto-detected):
+    'plugin_skills_used': plugin_skills_used,
+    'mcp_servers_used': mcp_servers_used,
+    'tools_used': tools_used,
+    'ad_hoc_instructions': ad_hoc_instructions,
+    'operator_notes': operator_notes,
 }
 
 run_dir = f'.arc-agi-benchmarks/runs/{run_id}'
