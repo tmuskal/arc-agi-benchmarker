@@ -6,9 +6,13 @@ Usage:
     python game_driver.py <run_dir> <game_id> <seed> <request_file>
 
 The request_file is a JSON file with:
-    {"command": "init"}                              -- initialize game
-    {"command": "step", "action": "ACTION1", ...}    -- take an action
-    {"command": "reset"}                             -- reset the game
+    {"command": "init"}                                  -- initialize game
+    {"command": "step", "action": "ACTION1", ...}        -- take an action
+    {"command": "reset"}                                 -- reset the game
+    {"command": "batch", "actions": [{...}, {...}]}      -- execute many steps/resets in one invocation
+                                                            (each item: {"action":"ACTIONn", "data"?:{}, "reasoning"?:""}
+                                                             or {"reset": true}). Stops early on None obs or optional
+                                                             {"stopOn": "GAME_OVER"|"WIN"|"level_change"}.
 
 Output: JSON observation on the LAST line of stdout.
 Note: arc_agi may print INFO log lines to stdout before the JSON.
@@ -130,6 +134,53 @@ elif command == 'reset':
         sys.exit(1)
     session['resets'] += 1
     session['action_history'].append({'is_reset': True})
+elif command == 'batch':
+    stop_on = request.get('stopOn')
+    prev_level = getattr(obs, 'levels_completed', None)
+    executed = 0
+    batch_stop_reason = None
+    for item in request.get('actions', []):
+        if item.get('reset') or item.get('is_reset'):
+            obs = env.reset()
+            if obs is None:
+                batch_stop_reason = 'reset_returned_none'
+                break
+            session['resets'] += 1
+            session['action_history'].append({'is_reset': True})
+        else:
+            action_name = item['action']
+            action = GameAction[action_name]
+            step_kwargs = {'action': action}
+            if item.get('data'):
+                step_kwargs['data'] = item['data']
+            if item.get('reasoning'):
+                step_kwargs['reasoning'] = item['reasoning']
+            obs = env.step(**step_kwargs)
+            if obs is None:
+                batch_stop_reason = f'step_returned_none_at_index_{executed}'
+                break
+            entry = {'action': action_name, 'action_id': action.value}
+            if item.get('data'):
+                entry['data'] = item['data']
+            if item.get('reasoning'):
+                entry['reasoning'] = item['reasoning']
+            session['action_history'].append(entry)
+            session['steps'] += 1
+        executed += 1
+        state_str = str(getattr(obs, 'state', ''))
+        cur_level = getattr(obs, 'levels_completed', None)
+        if stop_on == 'GAME_OVER' and 'GAME_OVER' in state_str:
+            batch_stop_reason = 'GAME_OVER'
+            break
+        if stop_on == 'WIN' and 'WIN' in state_str:
+            batch_stop_reason = 'WIN'
+            break
+        if stop_on == 'level_change' and prev_level is not None and cur_level != prev_level:
+            batch_stop_reason = 'level_change'
+            break
+        prev_level = cur_level
+    # Annotate result with batch info (injected into observation_file below via session)
+    session['_last_batch'] = {'executed': executed, 'stopReason': batch_stop_reason}
 
 # Extract observation - recursively convert numpy arrays to lists for JSON
 import numpy as np

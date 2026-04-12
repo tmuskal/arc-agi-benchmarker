@@ -1,9 +1,14 @@
 .a5c/*
-!.a5c/processes/
+!.a5c/processes/*.js
 .a5c/processes/*
 !.a5c/processes/benchmark-plugin-creator.js
+!.a5c/processes/arc-agi-solve-v2.js
 initial.request.md
 specs/
 .arc-agi-venv/
 .arc-agi-benchmarks/
 environment_files/
+*.pyc
+*.py
+*.json
+.claude/scheduled_tasks.lock
