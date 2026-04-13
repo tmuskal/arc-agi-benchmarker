@@ -12,3 +12,9 @@ environment_files/
 *.py
 *.json
 .claude/scheduled_tasks.lock
+*_journal.md
+*.log
+test_import*
+lvl*.txt
+debug_*
+check_file.cjs
