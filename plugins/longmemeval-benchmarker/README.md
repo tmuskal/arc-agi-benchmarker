@@ -12,11 +12,11 @@ Benchmark your current Claude Code harness+model against [LongMemEval](https://g
 
 ## Quickstart
 
-1. Run `/longmemeval-setup` — walks you through conda env + upstream clone + dataset download.
-2. Run `/longmemeval-browse-tests` to preview a few items.
-3. Run `/longmemeval-run-benchmark` — executes up to 500 items on `longmemeval_s.json` by default.
-4. Run `/longmemeval-report` to print per-type accuracy and the overall scorecard.
-5. Optionally `/longmemeval-compare-runs <runIdA> <runIdB>` or `/longmemeval-cross-harness`.
+1. Run `/longmemeval-benchmarker:setup` — walks you through conda env + upstream clone + dataset download.
+2. Run `/longmemeval-benchmarker:browse-tests` to preview a few items.
+3. Run `/longmemeval-benchmarker:run-benchmark` — executes up to 500 items on `longmemeval_s.json` by default.
+4. Run `/longmemeval-benchmarker:report` to print per-type accuracy and the overall scorecard.
+5. Optionally `/longmemeval-benchmarker:compare-runs <runIdA> <runIdB>` or `/longmemeval-benchmarker:cross-harness`.
 
 ## Requirements
 

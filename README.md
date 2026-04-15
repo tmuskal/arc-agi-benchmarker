@@ -66,7 +66,7 @@ claude plugin install arc-agi-benchmarker@arc-agi-benchmarker --scope project
 In a Claude Code session, run:
 
 ```
-/arc-setup
+/arc-agi-benchmarker:setup
 ```
 
 This installs dependencies (Python venv, `arc-agi` package), validates your environment, and creates the configuration at `.arc-agi-benchmarks/config.json`.
@@ -74,31 +74,31 @@ This installs dependencies (Python venv, `arc-agi` package), validates your envi
 ## Quick Start
 
 ```
-1. /arc-setup                    # Install dependencies, create venv, validate
-2. /arc-benchmark                # Run a benchmark (Claude Code plays ARC-AGI games)
-3. /arc-report latest            # View your benchmark report
+1. /arc-agi-benchmarker:setup                    # Install dependencies, create venv, validate
+2. /arc-agi-benchmarker:run-benchmark            # Run a benchmark (Claude Code plays ARC-AGI games)
+3. /arc-agi-benchmarker:report latest            # View your benchmark report
 ```
 
 ## Skills
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| **setup** | `/arc-setup` | Install dependencies, create venv, validate environment |
-| **run-benchmark** | `/arc-benchmark` | Run ARC-AGI games with Claude Code as the agent |
-| **browse-tests** | `/arc-browse` | Explore available environments with ASCII grid visualization |
-| **report** | `/arc-report` | Generate formatted scoring reports |
-| **compare-runs** | `/arc-compare` | Compare benchmark runs, track improvements |
-| **cross-harness** | `/arc-cross` | Generate instructions for Codex/Gemini/OpenCode, import and compare results |
+| **setup** | `/arc-agi-benchmarker:setup` | Install dependencies, create venv, validate environment |
+| **run-benchmark** | `/arc-agi-benchmarker:run-benchmark` | Run ARC-AGI games with Claude Code as the agent |
+| **browse-tests** | `/arc-agi-benchmarker:browse-tests` | Explore available environments with ASCII grid visualization |
+| **report** | `/arc-agi-benchmarker:report` | Generate formatted scoring reports |
+| **compare-runs** | `/arc-agi-benchmarker:compare-runs` | Compare benchmark runs, track improvements |
+| **cross-harness** | `/arc-agi-benchmarker:cross-harness` | Generate instructions for Codex/Gemini/OpenCode, import and compare results |
 
 ## Cross-Harness Benchmarking
 
 Compare Claude Code against other AI coding tools:
 
 ```
-/arc-cross generate codex         # Generate instructions for Codex CLI
-/arc-cross generate gemini        # Generate instructions for Gemini CLI
-/arc-cross import codex results/  # Import results from another harness
-/arc-cross compare                # Compare across harnesses
+/arc-agi-benchmarker:cross-harness generate codex         # Generate instructions for Codex CLI
+/arc-agi-benchmarker:cross-harness generate gemini        # Generate instructions for Gemini CLI
+/arc-agi-benchmarker:cross-harness import codex results/  # Import results from another harness
+/arc-agi-benchmarker:cross-harness compare                # Compare across harnesses
 ```
 
 Supported harnesses: **Codex CLI**, **Gemini CLI**, **OpenCode**.
@@ -127,7 +127,7 @@ Supported harnesses: **Codex CLI**, **Gemini CLI**, **OpenCode**.
 - **Python >= 3.12**
 - **pip** or **uv** package manager
 - **Claude Code CLI**
-- The `arc-agi` Python package (installed automatically by `/arc-setup`)
+- The `arc-agi` Python package (installed automatically by `/arc-agi-benchmarker:setup`)
 
 ## Data Storage
 
