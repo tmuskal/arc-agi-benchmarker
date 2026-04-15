@@ -19,87 +19,87 @@ The plugin operates in **OFFLINE mode** by default, using local environment file
 - **Python >= 3.12** (install from python.org or via your system package manager)
 - **pip** or **uv** package manager
 - **Claude Code CLI**
-- The `arc-agi` Python package (installed automatically by `/arc-setup`)
+- The `arc-agi` Python package (installed automatically by `/arc-agi-benchmarker:setup`)
 
 ## Quick Start
 
 ```
-1. /arc-setup                    # Install dependencies, create venv, validate
-2. /arc-benchmark                # Run a benchmark (you are the game-playing agent)
-3. /arc-report latest            # View your benchmark report
+1. /arc-agi-benchmarker:setup                    # Install dependencies, create venv, validate
+2. /arc-agi-benchmarker:run-benchmark            # Run a benchmark (you are the game-playing agent)
+3. /arc-agi-benchmarker:report latest            # View your benchmark report
 ```
 
 That is the core workflow. From there you can browse tests, compare runs, or set up cross-harness benchmarks:
 
 ```
-4. /arc-browse                   # Explore available games and metadata
-5. /arc-compare <RUN_A> <RUN_B>  # Compare two runs side by side
-6. /arc-cross-harness generate codex  # Generate instructions for Codex
+4. /arc-agi-benchmarker:browse-tests                   # Explore available games and metadata
+5. /arc-agi-benchmarker:compare-runs <RUN_A> <RUN_B>  # Compare two runs side by side
+6. /arc-agi-benchmarker:cross-harness generate codex  # Generate instructions for Codex
 ```
 
 ## Available Skills
 
 | Command | Skill | Description |
 |---------|-------|-------------|
-| `/arc-setup` | setup | Install dependencies, configure environment, validate readiness |
-| `/arc-benchmark` | run-benchmark | Execute benchmark runs against ARC-AGI games |
-| `/arc-browse` | browse-tests | Explore available environments, metadata, and game details |
-| `/arc-report` | report | Generate and display reports from completed runs |
-| `/arc-compare` | compare-runs | Compare two or more benchmark runs |
-| `/arc-cross-harness` | cross-harness | Generate cross-harness instructions, import results, compare across harnesses |
+| `/arc-agi-benchmarker:setup` | setup | Install dependencies, configure environment, validate readiness |
+| `/arc-agi-benchmarker:run-benchmark` | run-benchmark | Execute benchmark runs against ARC-AGI games |
+| `/arc-agi-benchmarker:browse-tests` | browse-tests | Explore available environments, metadata, and game details |
+| `/arc-agi-benchmarker:report` | report | Generate and display reports from completed runs |
+| `/arc-agi-benchmarker:compare-runs` | compare-runs | Compare two or more benchmark runs |
+| `/arc-agi-benchmarker:cross-harness` | cross-harness | Generate cross-harness instructions, import results, compare across harnesses |
 
 ### Skill Details and Example Invocations
 
-**setup** (`/arc-setup`)
+**setup** (`/arc-agi-benchmarker:setup`)
 Sets up the benchmarking environment: checks Python version, creates a `.arc-agi-venv` virtual environment, installs the `arc-agi` package, writes `.arc-agi-benchmarks/config.json`, and validates everything works.
 
 ```
-/arc-setup
+/arc-agi-benchmarker:setup
 ```
 
-**run-benchmark** (`/arc-benchmark`)
+**run-benchmark** (`/arc-agi-benchmarker:run-benchmark`)
 Runs a benchmark session. Claude Code becomes the game-playing agent -- observing grids, reasoning about patterns, choosing actions, and submitting solutions. Fewer actions yield higher scores. After completing the benchmark, it automatically invokes `/arc-agi-benchmarker:report`.
 
 ```
-/arc-benchmark
-/arc-benchmark bt11 --seed 42
-/arc-benchmark bt11 bt12 bt13
+/arc-agi-benchmarker:run-benchmark
+/arc-agi-benchmarker:run-benchmark bt11 --seed 42
+/arc-agi-benchmarker:run-benchmark bt11 bt12 bt13
 ```
 
-**browse-tests** (`/arc-browse`)
+**browse-tests** (`/arc-agi-benchmarker:browse-tests`)
 Explores available ARC-AGI environments. Lists games, shows details with ASCII grid visualization of training examples, and displays historical scores from both standard runs and cross-harness runs.
 
 ```
-/arc-browse
-/arc-browse bt11
-/arc-browse --filter bt
-/arc-browse --tag training
+/arc-agi-benchmarker:browse-tests
+/arc-agi-benchmarker:browse-tests bt11
+/arc-agi-benchmarker:browse-tests --filter bt
+/arc-agi-benchmarker:browse-tests --tag training
 ```
 
-**report** (`/arc-report`)
+**report** (`/arc-agi-benchmarker:report`)
 Generates a formatted markdown report from a completed benchmark run. Shows overall score, per-game breakdowns, per-level action counts, and performance analysis.
 
 ```
-/arc-report latest
-/arc-report <RUN_ID>
+/arc-agi-benchmarker:report latest
+/arc-agi-benchmarker:report <RUN_ID>
 ```
 
-**compare-runs** (`/arc-compare`)
+**compare-runs** (`/arc-agi-benchmarker:compare-runs`)
 Compares two or more benchmark runs side by side. Shows score deltas, identifies improvements and regressions, diffs configurations, and saves a structured comparison. Supports runs from both standard and cross-harness directories.
 
 ```
-/arc-compare <RUN_A> <RUN_B>
-/arc-compare <RUN_A> <RUN_B> <RUN_C>
+/arc-agi-benchmarker:compare-runs <RUN_A> <RUN_B>
+/arc-agi-benchmarker:compare-runs <RUN_A> <RUN_B> <RUN_C>
 ```
 
-**cross-harness** (`/arc-cross-harness`)
+**cross-harness** (`/arc-agi-benchmarker:cross-harness`)
 Manages cross-harness benchmarking with three sub-commands:
 
 ```
-/arc-cross-harness generate codex           # Generate instructions for Codex
-/arc-cross-harness generate gemini --ref <RUN_ID>  # Use a specific run as reference
-/arc-cross-harness import codex ./results.json     # Import results from Codex
-/arc-cross-harness compare --all                   # Compare all cross-harness runs
+/arc-agi-benchmarker:cross-harness generate codex           # Generate instructions for Codex
+/arc-agi-benchmarker:cross-harness generate gemini --ref <RUN_ID>  # Use a specific run as reference
+/arc-agi-benchmarker:cross-harness import codex ./results.json     # Import results from Codex
+/arc-agi-benchmarker:cross-harness compare --all                   # Compare all cross-harness runs
 ```
 
 ## Cross-Harness Workflow
@@ -112,7 +112,7 @@ The cross-harness feature lets you benchmark the same ARC-AGI tasks across diffe
 
 1. **Generate** -- Create instruction documents and helper scripts for the target harness:
    ```
-   /arc-cross-harness generate codex
+   /arc-agi-benchmarker:cross-harness generate codex
    ```
    This produces a markdown instruction file and any needed helper scripts in `.arc-agi-benchmarks/cross-harness/<harness>/`.
 
@@ -120,13 +120,13 @@ The cross-harness feature lets you benchmark the same ARC-AGI tasks across diffe
 
 3. **Import** -- Bring the results back into the benchmarker:
    ```
-   /arc-cross-harness import codex ./path/to/results.json
+   /arc-agi-benchmarker:cross-harness import codex ./path/to/results.json
    ```
    Results are normalized into the standard scorecard format and stored in `.arc-agi-benchmarks/cross-harness/<harness>/runs/`.
 
 4. **Compare** -- Compare performance across harnesses:
    ```
-   /arc-cross-harness compare --all
+   /arc-agi-benchmarker:cross-harness compare --all
    ```
    This delegates to the `compare-runs` skill to show score deltas across harnesses.
 
